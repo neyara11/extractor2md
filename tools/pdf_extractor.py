@@ -56,8 +56,6 @@ class PdfExtractor(BaseExtractor):
             try:
                 for page_number, page in enumerate(pdf_reader):
                     content, page_img_list = self._extract_page_content(page)
-                    if page_img_list:
-                        content += "\n" + page_img_list
                     all_images.extend(page_img_list)
                     all_content_parts.append(content)
                     tups = markdown_to_tups(content)
