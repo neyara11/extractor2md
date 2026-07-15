@@ -93,7 +93,7 @@ class ExcelExtractor(BaseExtractor):
                 df.dropna(how="all", inplace=True)
 
                 md_content = f"## {excel_sheet_name}\n\n"
-                md_content += "| " + " | ".join(df.columns) + " |\n"
+                md_content += "| " + " | ".join(str(c) for c in df.columns) + " |\n"
                 md_content += "| " + " | ".join(["---"] * len(df.columns)) + " |\n"
 
                 for _, row in df.iterrows():
