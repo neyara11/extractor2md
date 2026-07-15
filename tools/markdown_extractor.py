@@ -4,7 +4,7 @@ import mimetypes
 import re
 import uuid
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -12,7 +12,7 @@ from dify_plugin import Tool
 from dify_plugin.invocations.file import UploadFileResponse
 
 from tools.extractor_base import BaseExtractor
-from tools.helpers import detect_file_encodings
+from tools.helpers import detect_file_encodings, markdown_to_tups
 from tools.document import Document, ExtractorResult
 
 
@@ -68,51 +68,6 @@ class MarkdownExtractor(BaseExtractor):
         """Check if the url is valid."""
         parsed = urlparse(url)
         return bool(parsed.netloc) and bool(parsed.scheme)
-
-    def markdown_to_tups(self, markdown_text: str) -> list[tuple[Optional[str], str]]:
-        """Convert a markdown file to a dictionary.
-
-        The keys are the headers and the values are the text under each header.
-
-        """
-        markdown_tups: list[tuple[Optional[str], str]] = []
-        lines = markdown_text.split("\n")
-
-        current_header = None
-        current_text = ""
-        code_block_flag = False
-
-        for line in lines:
-            if line.startswith("```"):
-                code_block_flag = not code_block_flag
-                current_text += line + "\n"
-                continue
-            if code_block_flag:
-                current_text += line + "\n"
-                continue
-            header_match = re.match(r"^#+\s", line)
-            if header_match:
-                if current_header is not None:
-                    markdown_tups.append((current_header, current_text))
-
-                current_header = line
-                current_text = ""
-            else:
-                current_text += line + "\n"
-        markdown_tups.append((current_header, current_text))
-
-        if current_header is not None:
-            # pass linting, assert keys are defined
-            markdown_tups = [
-                (re.sub(r"#", "", cast(str, key)).strip(), re.sub(r"<.*?>", "", value))
-                for key, value in markdown_tups
-            ]
-        else:
-            markdown_tups = [
-                (key, re.sub("\n", "", value)) for key, value in markdown_tups
-            ]
-
-        return markdown_tups
 
     def remove_images(self, content: str) -> str:
         """Get a dictionary of a markdown file from its path."""
@@ -177,42 +132,6 @@ class MarkdownExtractor(BaseExtractor):
         if self._remove_images:
             content = self.remove_images(content)
 
-        return content, self._markdown_to_tups(content), img_list
+        return content, markdown_to_tups(content), img_list
 
 
-    def _markdown_to_tups(self, markdown_text: str) -> list[tuple[Optional[str], str]]:
-        """Convert a markdown file to a dictionary.
-
-        The keys are the headers and the values are the text under each header.
-
-        """
-        markdown_tups: list[tuple[Optional[str], str]] = []
-        lines = markdown_text.split("\n")
-
-        current_header = None
-        current_text = ""
-        code_block_flag = False
-
-        for line in lines:
-            if line.startswith("```"):
-                code_block_flag = not code_block_flag
-                current_text += line + "\n"
-                continue
-            if code_block_flag:
-                current_text += line + "\n"
-                continue
-            header_match = re.match(r"^#+\s", line)
-            if header_match:
-                markdown_tups.append((current_header, current_text))
-                current_header = line
-                current_text = ""
-            else:
-                current_text += line + "\n"
-        markdown_tups.append((current_header, current_text))
-
-        markdown_tups = [
-            (re.sub(r"#", "", cast(str, key)).strip() if key else None, re.sub(r"<.*?>", "", value))
-            for key, value in markdown_tups
-        ]
-
-        return markdown_tups

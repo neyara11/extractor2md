@@ -1,24 +1,24 @@
-version: 0.0.13
+version: 0.1.0
 type: plugin
-author: langgenius
-name: dify_extractor
+author: neyara11
+name: extractor2md
 label:
-  en_US: Dify Extractor
-  ja_JP: Dify Extractor
-  zh_Hans: Dify文本提取器
-  pt_BR: Dify Extractor
+  en_US: Extractor2md
+  ja_JP: Extractor2md
+  zh_Hans: Extractor2md
+  pt_BR: Extractor2md
 description:
-  en_US: Dify Extractor
-  ja_JP: Dify Extractor
-  zh_Hans: Dify Extractor
-  pt_BR: Dify Extractor
+  en_US: Extract text and structure from files into Markdown. Supports PDF, Word, Excel, PowerPoint, HTML, CSV, JSON, YAML, and plain text.
+  ja_JP: ファイルからテキストと構造をMarkdownに抽出。PDF、Word、Excel、PowerPoint、HTML、CSV、JSON、YAML、プレーンテキストに対応。
+  zh_Hans: 从文件中提取文本和结构，转换为 Markdown。支持 PDF、Word、Excel、PowerPoint、HTML、CSV、JSON、YAML 和纯文本。
+  pt_BR: Extraia texto e estrutura de arquivos para Markdown. Suporta PDF, Word, Excel, PowerPoint, HTML, CSV, JSON, YAML e texto simples.
 icon: icon.svg
 resource:
   memory: 268435456
   permission: {}
 plugins:
   tools:
-    - provider/dify_extractor.yaml
+    - provider/extractor2md.yaml
 meta:
   version: 0.0.1
   arch:

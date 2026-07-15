@@ -1,0 +1,19 @@
+identity:
+  author: neyara11
+  name: extractor2md
+  label:
+    en_US: Extractor2md
+    zh_Hans: Extractor2md文本提取器
+    pt_BR: Extractor2md
+  description:
+    en_US: Extract text and structure from files into Markdown. Supports PDF, Word, Excel, PowerPoint, HTML, CSV, JSON, YAML, and plain text.
+    zh_Hans: 从文件中提取文本和结构为 Markdown。支持 PDF、Word、Excel、PowerPoint、HTML、CSV、JSON、YAML 和纯文本。
+    pt_BR: Extraia texto e estrutura de arquivos para Markdown. Suporta PDF, Word, Excel, PowerPoint, HTML, CSV, JSON, YAML e texto simples.
+  icon: icon.svg
+  tags:
+    - rag
+tools:
+  - tools/extractor2md.yaml
+extra:
+  python:
+    source: provider/extractor2md.py

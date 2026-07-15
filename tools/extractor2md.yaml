@@ -1,16 +1,16 @@
 identity:
-  name: dify_extractor
-  author: langgenius
+  name: extractor2md
+  author: neyara11
   label:
-    en_US: Dify Extractor
-    zh_Hans: Dify文本提取器
-    pt_BR: Dify Extractor
+    en_US: Extractor2md
+    zh_Hans: Extractor2md文本提取器
+    pt_BR: Extractor2md
 description:
   human:
-    en_US: Dify Extractor
-    zh_Hans: Dify Extractor
-    pt_BR: Dify Extractor
-  llm: Dify Extractor
+    en_US: Extractor2md — extract text and structure from files into Markdown
+    zh_Hans: Extractor2md — 从文件中提取文本和结构为 Markdown
+    pt_BR: Extractor2md — extraia texto e estrutura de arquivos para Markdown
+  llm: Extractor2md — extract text and structure from files into Markdown
 parameters:
   - name: file
     type: file
@@ -40,4 +40,4 @@ output_schema:
         description: The images extracted from the file
 extra:
   python:
-    source: tools/dify_extractor.py
+    source: tools/extractor2md.py

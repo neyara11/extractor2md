@@ -2,13 +2,13 @@ import io
 import logging
 import mimetypes
 import uuid
-from collections.abc import Iterator
 from io import BytesIO
 
 from dify_plugin import Tool
 
 from tools.document import Document, ExtractorResult
 from tools.extractor_base import BaseExtractor
+from tools.helpers import markdown_to_tups
 
 import pypdfium2
 import pypdfium2.raw as pdfium_c
@@ -25,7 +25,6 @@ class PdfExtractor(BaseExtractor):
         file_name: file name.
     """
 
-    # Magic bytes for image format detection: (magic_bytes, extension, mime_type)
     IMAGE_FORMATS = [
         (b"\xff\xd8\xff", "jpg", "image/jpeg"),
         (b"\x89PNG\r\n\x1a\n", "png", "image/png"),
@@ -39,55 +38,163 @@ class PdfExtractor(BaseExtractor):
     ]
     MAX_MAGIC_LEN = max(len(m) for m, _, _ in IMAGE_FORMATS)
 
+    HEADER_SIZE_RATIO = 1.3
+    SUBHEADER_SIZE_RATIO = 1.15
+    BOLD_WEIGHT = 600
+
     def __init__(self, tool: Tool, file_bytes: bytes, file_name: str):
         self._file_bytes = file_bytes
         self._file_name = file_name
         self._tool = tool
 
     def extract(self) -> ExtractorResult:
-        documents, img_list = self.parse()
-        text_list = []
-        for document in documents:
-            text_list.append(document.page_content)
-        text = "\n\n".join(text_list)
-
-        return ExtractorResult(md_content=text, documents=documents, img_list=img_list)
-
-    def parse(self) -> tuple[list[Document], list]:
-        """Parse the bytes and return documents and images."""
-        documents = []
-        img_list = []
+        all_documents = []
+        all_images = []
+        all_content_parts = []
         with BytesIO(self._file_bytes) as file:
             pdf_reader = pypdfium2.PdfDocument(file, autoclose=True)
             try:
                 for page_number, page in enumerate(pdf_reader):
-                    text_page = page.get_textpage()
-                    content = text_page.get_text_range()
-                    text_page.close()
-
-                    image_content, page_img_list = self._extract_images(page)
-                    if image_content:
-                        content += "\n" + image_content
-                    img_list.extend(page_img_list)
-
-                    page.close()
-                    metadata = {"source": self._file_name, "page": page_number}
-                    documents.append(Document(page_content=content, metadata=metadata))
+                    content, page_img_list = self._extract_page_content(page)
+                    if page_img_list:
+                        content += "\n" + page_img_list
+                    all_images.extend(page_img_list)
+                    all_content_parts.append(content)
+                    tups = markdown_to_tups(content)
+                    for header, value in tups:
+                        value = value.strip()
+                        metadata = {"source": self._file_name, "page": page_number}
+                        if header:
+                            metadata["section"] = header
+                        if header is None:
+                            if value:
+                                all_documents.append(Document(page_content=value, metadata=metadata))
+                        else:
+                            all_documents.append(Document(page_content=f"\n\n{header}\n{value}", metadata=metadata))
             finally:
                 pdf_reader.close()
-        return documents, img_list
+
+        full_md = "\n\n".join(all_content_parts)
+        return ExtractorResult(md_content=full_md, documents=all_documents, img_list=all_images)
+
+    def _extract_page_content(self, page) -> tuple[str, list]:
+        page_md = ""
+        text_runs = self._get_text_runs_with_font(page)
+        if text_runs:
+            page_md = self._build_markdown_from_runs(text_runs)
+        else:
+            text_page = page.get_textpage()
+            try:
+                page_md = text_page.get_text_bounded()
+            finally:
+                text_page.close()
+
+        image_content, page_img_list = self._extract_images(page)
+        if image_content:
+            page_md += "\n" + image_content
+
+        return page_md, page_img_list
+
+    def _get_text_runs_with_font(self, page) -> list[dict]:
+        try:
+            text_page = page.get_textpage()
+        except Exception:
+            return []
+
+        try:
+            objects = list(page.get_objects(
+                filter=(pdfium_c.FPDF_PAGEOBJ_TEXT,),
+                textpage=text_page,
+            ))
+        except Exception:
+            logger.debug("Failed to get text objects for header detection, falling back to plain text")
+            text_page.close()
+            return []
+
+        runs = []
+        for obj in objects:
+            try:
+                font_size = obj.get_font_size()
+                text = obj.extract()
+                bounds = obj.get_bounds()
+                font_weight = 400
+                try:
+                    font = obj.get_font()
+                    font_weight = font.get_weight()
+                except Exception:
+                    pass
+                if text.strip():
+                    runs.append({
+                        "text": text,
+                        "font_size": font_size,
+                        "font_weight": font_weight,
+                        "y": bounds[3],
+                        "x": bounds[0],
+                    })
+            except Exception:
+                continue
+
+        text_page.close()
+        return runs
+
+    def _build_markdown_from_runs(self, runs: list[dict]) -> str:
+        if not runs:
+            return ""
+
+        runs.sort(key=lambda r: (-r["y"], r["x"]))
+
+        font_sizes = [r["font_size"] for r in runs]
+        font_sizes.sort()
+        median_font_size = font_sizes[len(font_sizes) // 2] if font_sizes else 12.0
+
+        body_size = median_font_size or 12.0
+
+        lines = []
+        current_line_y = None
+        current_line_runs = []
+
+        for run in runs:
+            if current_line_y is None or abs(run["y"] - current_line_y) > body_size * 0.2:
+                if current_line_runs:
+                    lines.append(self._merge_line_runs(current_line_runs))
+                current_line_runs = [run]
+                current_line_y = run["y"]
+            else:
+                current_line_runs.append(run)
+
+        if current_line_runs:
+            lines.append(self._merge_line_runs(current_line_runs))
+
+        result = []
+        for line_runs in lines:
+            if not line_runs:
+                continue
+            text = " ".join(r["text"].strip() for r in line_runs)
+            max_size = max(r["font_size"] for r in line_runs)
+            max_weight = max(r["font_weight"] for r in line_runs)
+
+            if max_size >= body_size * self.HEADER_SIZE_RATIO:
+                text = f"# {text}"
+            elif max_size >= body_size * self.SUBHEADER_SIZE_RATIO and max_weight >= self.BOLD_WEIGHT:
+                text = f"## {text}"
+            elif max_size >= body_size * self.SUBHEADER_SIZE_RATIO:
+                text = f"### {text}"
+
+            result.append(text)
+
+        return "\n\n".join(result)
+
+    @staticmethod
+    def _merge_line_runs(runs: list[dict]) -> list[dict]:
+        merged = []
+        for run in runs:
+            if merged and run["font_size"] == merged[-1]["font_size"] and run["font_weight"] == merged[-1]["font_weight"]:
+                merged[-1]["text"] += " " + run["text"]
+            else:
+                merged.append(dict(run))
+        return merged
 
     def _extract_images(self, page) -> tuple[str, list]:
-        """
-        Extract images from a PDF page, save them to storage,
-        and return markdown image links.
-
-        Args:
-            page: pypdfium2 page object.
-
-        Returns:
-            Markdown string containing links to the extracted images.
-        """
         image_content = []
         img_list = []
 
@@ -95,10 +202,7 @@ class PdfExtractor(BaseExtractor):
             image_objects = page.get_objects(filter=(pdfium_c.FPDF_PAGEOBJ_IMAGE,))
             for obj in image_objects:
                 try:
-                    # Extract image bytes
                     img_byte_arr = io.BytesIO()
-                    # Extract DCTDecode (JPEG) and JPXDecode (JPEG 2000) images directly
-                    # Fallback to png for other formats
                     obj.extract(img_byte_arr, fb_format="png")
                     img_bytes = img_byte_arr.getvalue()
 

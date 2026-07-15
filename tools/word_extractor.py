@@ -14,6 +14,7 @@ from docx.text.run import Run
 
 from tools.document import Document, ExtractorResult
 from tools.extractor_base import BaseExtractor
+from tools.helpers import markdown_to_tups
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +39,21 @@ class WordExtractor(BaseExtractor):
     def extract(self) -> ExtractorResult:
         """Load given path as single page."""
         content, img_list = self.parse_docx(self._file_bytes)
+        tups = markdown_to_tups(content)
+        documents = []
+        for header, value in tups:
+            value = value.strip()
+            metadata = {"source": self._file_name}
+            if header:
+                metadata["section"] = header
+            if header is None:
+                if value:
+                    documents.append(Document(page_content=value, metadata=metadata))
+            else:
+                documents.append(Document(page_content=f"\n\n{header}\n{value}", metadata=metadata))
         return ExtractorResult(
             md_content=content,
-            documents=[
-                Document(page_content=content, metadata={"source": self._file_name})
-            ],
+            documents=documents,
             img_list=img_list,
             origin_result=None
         )
@@ -186,6 +197,25 @@ class WordExtractor(BaseExtractor):
             if run.text.strip():
                 paragraph_content.append(run.text.strip())
         return " ".join(paragraph_content) if paragraph_content else ""
+
+    @staticmethod
+    def _get_heading_level(style_name: str) -> int:
+        """Return heading level from a style name (1-6), or 0 if not a heading."""
+        if not style_name:
+            return 0
+        style_lower = style_name.lower().strip()
+        if style_lower.startswith("heading"):
+            try:
+                level = int(style_lower[len("heading"):].strip())
+                if 1 <= level <= 6:
+                    return level
+            except ValueError:
+                pass
+        if style_lower in {"title", "heading"}:
+            return 1
+        if style_lower == "subtitle":
+            return 2
+        return 0
 
     def parse_docx(self, file_bytes):
         doc = DocxDocument(BytesIO(file_bytes))
@@ -355,6 +385,9 @@ class WordExtractor(BaseExtractor):
                 ):  # paragraph
                     para = paragraphs.pop(0)
                     parsed_paragraph = parse_paragraph(para)
+                    heading_level = self._get_heading_level(para.style.name if para.style else "")
+                    if heading_level > 0 and parsed_paragraph.strip():
+                        parsed_paragraph = f"{'#' * heading_level} {parsed_paragraph.strip()}"
                     if parsed_paragraph.strip():
                         content.append(parsed_paragraph)
                     else:

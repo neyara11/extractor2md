@@ -13,6 +13,7 @@ from pptx import Presentation
 
 from tools.extractor_base import BaseExtractor
 from tools.document import Document, ExtractorResult
+from tools.helpers import markdown_to_tups
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,21 @@ class PPTXExtractor(BaseExtractor):
     def extract(self) -> ExtractorResult:
         """Load given path as single page."""
         content, img_list = self.parse_pptx(self._file_bytes)
+        tups = markdown_to_tups(content)
+        documents = []
+        for header, value in tups:
+            value = value.strip()
+            metadata = {"source": self._file_name}
+            if header:
+                metadata["section"] = header
+            if header is None:
+                if value:
+                    documents.append(Document(page_content=value, metadata=metadata))
+            else:
+                documents.append(Document(page_content=f"\n\n{header}\n{value}", metadata=metadata))
         return ExtractorResult(
             md_content=content,
-            documents=[
-                Document(page_content=content, metadata={"source": self._file_name})
-            ],
+            documents=documents,
             img_list=img_list,
             origin_result=None
         )
@@ -100,14 +111,15 @@ class PPTXExtractor(BaseExtractor):
         url_pattern = re.compile(r"http://[^\s+]+//|https://[^\s+]+")
         for slide_idx, slide in enumerate(prs.slides):
             slide_content = []
+            title_shape = slide.shapes.title
             for shape in slide.shapes:
-                # Extract text (including hyperlinks)
+                if title_shape is not None and shape is title_shape:
+                    continue
                 if shape.has_text_frame:
                     for paragraph in shape.text_frame.paragraphs:
                         para_text = ""
                         for run in paragraph.runs:
                             run_text = run.text or ""
-                            # Check for hyperlink
                             if run.hyperlink and run.hyperlink.address:
                                 if url_pattern.match(run.hyperlink.address):
                                     para_text += f"[{run_text}]({run.hyperlink.address})"
@@ -117,15 +129,18 @@ class PPTXExtractor(BaseExtractor):
                                 para_text += run_text
                         if para_text.strip():
                             slide_content.append(para_text.strip())
-                # Extract images
                 if hasattr(shape, "image"):
                     image_md = image_map.get((slide_idx, shape.shape_id))
                     if image_md:
                         slide_content.append(image_md)
-                # Extract tables
                 if shape.has_table:
                     table_md = self._table_to_markdown(shape.table)
                     slide_content.append(table_md)
+            heading = f"# Slide {slide_idx + 1}"
+            if title_shape is not None and title_shape.has_text_frame:
+                title_text = title_shape.text_frame.text.strip()
+                if title_text:
+                    heading = f"# {title_text}"
             if slide_content:
-                content.append(f"# Slide {slide_idx + 1}\n" + "\n".join(slide_content))
+                content.append(f"{heading}\n" + "\n".join(slide_content))
         return "\n\n".join(content), img_list
