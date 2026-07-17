@@ -83,7 +83,7 @@ class DifyExtractorTool(Tool):
             for f in extractor_result.img_list:
                 yield self.response_type(
                     type=ToolInvokeMessage.MessageType.FILE,
-                    message={},
+                    message=None,
                     meta={
                         "file": {
                             "dify_model_identity": DIFY_FILE_IDENTITY,
