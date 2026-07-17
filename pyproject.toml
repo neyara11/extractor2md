@@ -1,6 +1,6 @@
 [project]
 name = "extractor2md"
-version = "0.1.0"
+version = "0.1.1"
 description = "Extract text and structure from files into Markdown. Supports PDF, Word, Excel, PowerPoint, HTML, CSV, JSON, YAML, and plain text."
 readme = "README.md"
 requires-python = ">=3.12"
