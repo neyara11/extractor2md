@@ -36,8 +36,13 @@ output_schema:
       images:
         type: array
         items:
-          type: object
-        description: The images extracted from the file
+          type: file
+        description: The images extracted from the file (as file references)
+      files:
+        type: array
+        items:
+          type: file
+        description: The files extracted from the document (for LLM vision input)
 extra:
   python:
     source: tools/extractor2md.py
