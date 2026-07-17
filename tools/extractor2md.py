@@ -6,6 +6,7 @@ from zipfile import BadZipFile
 
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
+from dify_plugin.file.constants import DIFY_FILE_IDENTITY
 
 from tools.csv_extractor import CSVExtractor
 from tools.excel_extractor import ExcelExtractor
@@ -79,7 +80,25 @@ class DifyExtractorTool(Tool):
             return
 
         if extractor_result.img_list:
-            file_params = [f.to_app_parameter() for f in extractor_result.img_list]
-            yield self.create_variable_message("images", file_params)
+            for f in extractor_result.img_list:
+                yield self.response_type(
+                    type=ToolInvokeMessage.MessageType.FILE,
+                    message={},
+                    meta={
+                        "file": {
+                            "dify_model_identity": DIFY_FILE_IDENTITY,
+                            "id": None,
+                            "tenant_id": None,
+                            "type": f.type.value if f.type else "image",
+                            "transfer_method": "tool_file",
+                            "remote_url": None,
+                            "related_id": f.id,
+                            "filename": f.name,
+                            "extension": f.extension,
+                            "mime_type": f.mime_type,
+                            "size": f.size,
+                        }
+                    },
+                )
         yield self.create_text_message(extractor_result.md_content)
         yield self.create_variable_message("documents", extractor_result.documents)
