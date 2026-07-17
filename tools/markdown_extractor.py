@@ -107,7 +107,7 @@ class MarkdownExtractor(BaseExtractor):
         for img_url in img_url_list:
             if not self._is_valid_url(img_url):
                 continue
-            response = requests.get(img_url)
+            response = requests.get(img_url, timeout=30)
             if response.status_code == 200:
                 image_ext = mimetypes.guess_extension(response.headers["Content-Type"])
                 if image_ext is None:

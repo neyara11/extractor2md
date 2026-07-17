@@ -76,7 +76,7 @@ class WordExtractor(BaseExtractor):
                     if not self._is_valid_url(url):
                         continue
                     try:
-                        response = requests.get(url)
+                        response = requests.get(url, timeout=30)
                     except requests.exceptions.RequestException as e:
                         logger.exception("Failed to download image from URL: %s, error: %s", url, e)
                         continue
