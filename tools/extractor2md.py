@@ -4,9 +4,10 @@ from collections.abc import Generator
 from typing import Any
 from zipfile import BadZipFile
 
+import requests
+
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
-from dify_plugin.file.constants import DIFY_FILE_IDENTITY
 
 from tools.csv_extractor import CSVExtractor
 from tools.excel_extractor import ExcelExtractor
@@ -83,24 +84,15 @@ class DifyExtractorTool(Tool):
             file_params = [f.to_app_parameter() for f in extractor_result.img_list]
             yield self.create_variable_message("images", file_params)
             for f in extractor_result.img_list:
-                yield self.response_type(
-                    type=ToolInvokeMessage.MessageType.FILE,
-                    message=None,
-                    meta={
-                        "file": {
-                            "dify_model_identity": DIFY_FILE_IDENTITY,
-                            "id": None,
-                            "tenant_id": None,
-                            "type": f.type.value if f.type else "image",
-                            "transfer_method": "tool_file",
-                            "remote_url": None,
-                            "related_id": f.id,
-                            "filename": f.name,
-                            "extension": f.extension,
-                            "mime_type": f.mime_type,
-                            "size": f.size,
-                        }
-                    },
+                try:
+                    resp = requests.get(f.preview_url, timeout=30)
+                    resp.raise_for_status()
+                except Exception:
+                    logger.warning("Failed to download image for blob output: %s", f.preview_url)
+                    continue
+                yield self.create_blob_message(
+                    resp.content,
+                    meta={"mime_type": f.mime_type, "filename": f.name},
                 )
         yield self.create_text_message(extractor_result.md_content)
         yield self.create_variable_message("documents", extractor_result.documents)
