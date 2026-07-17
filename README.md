@@ -1,7 +1,7 @@
 ## Extractor2md
 
 **Author:** neyara11
-**Version:** 0.1.1
+**Version:** 0.1.2
 **Type:** tool
 
 ### Description
