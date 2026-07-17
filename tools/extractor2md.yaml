@@ -33,6 +33,11 @@ output_schema:
         items:
           type: object
         description: the documents extracted from the file
+      images:
+        type: array
+        items:
+          type: file
+        description: The images extracted from the document
 extra:
   python:
     source: tools/extractor2md.py
