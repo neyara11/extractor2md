@@ -80,6 +80,6 @@ class DifyExtractorTool(Tool):
 
         if extractor_result.img_list:
             file_params = [f.to_app_parameter() for f in extractor_result.img_list]
-            yield self.create_variable_message("images", file_params)
+            yield self.create_variable_message("files", file_params)
         yield self.create_text_message(extractor_result.md_content)
         yield self.create_variable_message("documents", extractor_result.documents)
